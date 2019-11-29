@@ -20,10 +20,14 @@ class DDPGAgent(object):
             setattr(self, key, value)
 
         self.IS_TRAINING = True
-        self.USING_CUDA = True
+
+        print("Using cuda for training? ", self.using_cuda)
 
         s_dim = self.env.observation_space.shape[0]
         a_dim = self.env.action_space.shape[0]
+
+        print("\nShowing the env information:\nState dimension:{}, Action dimension:{}\n".format(
+            s_dim, a_dim))
 
         self.actor = Actor(s_dim, 256, a_dim)
         self.actor_target = Actor(s_dim, 256, a_dim)
@@ -38,12 +42,12 @@ class DDPGAgent(object):
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.critic_target.load_state_dict(self.critic.state_dict())
 
-        if self.USING_CUDA:
+        if self.using_cuda:
             self.cuda()
 
     def act(self, s0):
         s0 = torch.tensor(s0, dtype=torch.float).unsqueeze(0)
-        if self.USING_CUDA:
+        if self.using_cuda:
             s0 = s0.cuda()
         a0 = self.actor(s0).squeeze(0).detach().cpu().numpy()
         return a0
@@ -66,7 +70,7 @@ class DDPGAgent(object):
         r1 = torch.tensor(r1, dtype=torch.float).view(self.batch_size, -1)
         s1 = torch.tensor(s1, dtype=torch.float)
         #sta3 = time.time()
-        if self.USING_CUDA:
+        if self.using_cuda:
             s0 = s0.cuda()
             a0 = a0.cuda()
             r1 = r1.cuda()
@@ -185,3 +189,12 @@ class DDPGAgent(object):
         self.actor_target.cuda()
         self.critic.cuda()
         self.critic_target.cuda()
+
+    def show_model(self):
+        print("Showing actor model: ")
+        for item in self.actor.named_parameters():
+            print(item[0], item[1].shape)
+
+        print("Showing critic model: ")
+        for item in self.critic.named_parameters():
+            print(item[0], item[1].shape)

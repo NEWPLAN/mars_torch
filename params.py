@@ -26,6 +26,9 @@ parser.add_argument('--CHECKPOINT_START_EPISODE', default=10,
                     type=int, help='check point path for retrain model')
 parser.add_argument('--CHECK_POINT_INTERVAL', default=10,
                     type=int, help='Save checkpoint every interval')
+
+parser.add_argument('--cuda', default=0,
+                    type=int, help='using cuda')
 args = parser.parse_args()
 
 if __name__ == "__main__" or 1:

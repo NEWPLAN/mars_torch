@@ -30,9 +30,11 @@ configs = {
     'tau': 0.02,
     'capacity': 10000,
     'batch_size': 32,
+    'using_cuda': args.cuda > 0,
 }
 
 agent = DDPGAgent(**configs)
+agent.show_model()
 
 if args.RUNNING_TYPE == "train":
     trainer = Trainer(agent, env, configs)
