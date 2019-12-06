@@ -6,10 +6,12 @@ import torch.optim as optim
 import random
 import time
 # import networks
-from Network.actor import Actor
-from Network.critic import Critic
+from Network.actor import Actor, ActorNet
+from Network.critic import Critic, CriticNet
 
 import os
+
+from log import logger
 
 # DDPGAgent
 
@@ -25,6 +27,13 @@ class DDPGAgent(object):
 
         s_dim = self.env.observation_space.shape[0]
         a_dim = self.env.action_space.shape[0]
+
+        # # new added
+        s_dim2, a_dim2 = self.env_network.get_state_dim(), self.env_network.get_action_dim()
+        logger.info("{}:{}".format(s_dim2, a_dim2))
+        self.actor_backup = ActorNet(s_dim2, a_dim2)
+        self.critic_backup = CriticNet(s_dim2, sum(a_dim2))
+        # # exit(0)  # new added
 
         print("\nShowing the env information:\nState dimension:{}, Action dimension:{}\n".format(
             s_dim, a_dim))
@@ -51,6 +60,19 @@ class DDPGAgent(object):
             s0 = s0.cuda()
         a0 = self.actor(s0).squeeze(0).detach().cpu().numpy()
         return a0
+
+    # new added to test act net
+    def act_backup(self, s0):
+        s0 = torch.tensor(s0, dtype=torch.float).unsqueeze(0)
+        a0 = self.actor_backup(s0).squeeze(0).detach().cpu().numpy()
+        return a0
+
+    # new added to test critic net
+    def crit_backup(self, s0, a0):
+        s0 = torch.tensor(s0, dtype=torch.float).unsqueeze(0)
+        a0 = torch.tensor(a0, dtype=torch.float).unsqueeze(0)
+        c_a = self.critic_backup(s0, a0).squeeze(0).detach().cpu().numpy()
+        return c_a
 
     def put(self, *transition):
         if len(self.buffer) == self.capacity:
@@ -191,10 +213,18 @@ class DDPGAgent(object):
         self.critic_target.cuda()
 
     def show_model(self):
-        print("Showing actor model: ")
-        for item in self.actor.named_parameters():
+        # logger.info("Showing actor model: ")
+        # for item in self.actor.named_parameters():
+        #     print(item[0], item[1].shape)
+
+        # logger.info("Showing critic model: ")
+        # for item in self.critic.named_parameters():
+        #     print(item[0], item[1].shape)
+
+        logger.info("Show actor backup net")
+        for item in self.actor_backup.named_parameters():
             print(item[0], item[1].shape)
 
-        print("Showing critic model: ")
-        for item in self.critic.named_parameters():
+        logger.info("Show critic backup net")
+        for item in self.critic_backup.named_parameters():
             print(item[0], item[1].shape)

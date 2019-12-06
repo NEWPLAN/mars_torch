@@ -1,3 +1,5 @@
+from tester import Tester
+from trainer import Trainer
 import gym
 import math
 import numpy as np
@@ -6,17 +8,37 @@ from agent import DDPGAgent
 
 from config import *
 from params import args
+#from Env.netEnv import Env
+from Env.env import NetEnv
+
+from log import logger
 
 # https://github.com/ShawnshanksGui/DATE_project/tree/master/DRLTE/drlte
 # https://github.com/blackredscarf/pytorch-DDPG
 # https://zhuanlan.zhihu.com/p/65931777
 # https://github.com/yc930401/Actor-Critic-pytorch/blob/master/Actor-Critic.py
 
-from trainer import Trainer
-from tester import Tester
+
+def build_env(args_):
+    env2 = NetEnv("/home/newplan/data/inputs/", "Abi_OBL_3_0_test",
+                  "Abi", args.MAX_STEP,  3995)
+    return env2
+    pass
+
 
 env = gym.make('Pendulum-v0')
+net_env = build_env(args)
+state_dim = net_env.get_state_dim()
+action_dim = net_env.get_action_dim()
+
+logger.info("State DIM: \n{}".format(state_dim))
+logger.info("Action DIM:\n{}".format(sum(action_dim)))
+# net_env.show_info()
+
 env.reset()
+net_env.reset()
+
+# exit(0)
 # env.render()
 
 # install env to the running params
@@ -24,6 +46,7 @@ env.reset()
 configs = {
     'args': args,
     'env': env,
+    'env_network': net_env,
     'gamma': 0.99,
     'actor_lr': 0.001,
     'critic_lr': 0.001,
