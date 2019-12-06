@@ -1,4 +1,3 @@
-import random
 import numpy as np
 
 from log import logger
@@ -7,7 +6,6 @@ from log import logger
 class NetEnv():
     def __init__(self, folder_path, TM_path, topo_path, step_per_episode, episode_start_index_=0):
         # for repeat experiment
-        random.seed(666)
         np.random.seed(666)
 
         self.MAX_STEP_PER_EPISODE = step_per_episode
@@ -126,7 +124,6 @@ class NetEnv():
             # build the decentralized agent
             self.tunnel_shape_ = [[] for x in range(self.node_num_)]
             for x in self.tunnels_:
-                print(x, x[0][0])
                 self.tunnel_shape_[x[0][0]].append(len(x))
 
         def parsing_topology():
@@ -280,7 +277,7 @@ class NetEnv():
             assert 1 == 0, "never come here"
 
         # logger.info("In step {}:{}".format( self.episode_count, self.step_count))
-        self.update_flow_map(action=[])
+        self.update_flow_map(action)
         max_util, tunnel_util, link_util = self.parsing_state_at_runtime()
         # if self.step_count == 0:
         #     logger.info("{}".format(max_util))
@@ -315,5 +312,5 @@ class NetEnv():
             # for x in self.tunnel_shape_:
             #     print(x)
             return self.tunnel_num_4_one_pair
-        print(self.tunnel_num_)
+        # print(self.tunnel_num_)
         pass

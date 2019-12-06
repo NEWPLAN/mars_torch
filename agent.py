@@ -3,11 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-import random
+import random as np
 import time
 # import networks
 from Network.actor import Actor, ActorNet
 from Network.critic import Critic, CriticNet
+
+from ReplayBuffer.replaybuffer import PriorityBuffer
+from Explorer.explorer import MyExplorer
 
 import os
 
@@ -25,33 +28,41 @@ class DDPGAgent(object):
 
         print("Using cuda for training? ", self.using_cuda)
 
-        s_dim = self.env.observation_space.shape[0]
-        a_dim = self.env.action_space.shape[0]
+        s_dim = self.env.get_state_dim()
+        a_dim = self.env.get_action_dim()
 
-        # # new added
-        s_dim2, a_dim2 = self.env_network.get_state_dim(), self.env_network.get_action_dim()
-        logger.info("{}:{}".format(s_dim2, a_dim2))
-        self.actor_backup = ActorNet(s_dim2, a_dim2)
-        self.critic_backup = CriticNet(s_dim2, sum(a_dim2))
-        # # exit(0)  # new added
+        self.beta_ = self.args.BETA
 
         print("\nShowing the env information:\nState dimension:{}, Action dimension:{}\n".format(
             s_dim, a_dim))
 
-        self.actor = Actor(s_dim, 256, a_dim)
-        self.actor_target = Actor(s_dim, 256, a_dim)
-        self.critic = Critic(s_dim+a_dim, 256, a_dim)
-        self.critic_target = Critic(s_dim+a_dim, 256, a_dim)
+        self.explorer_ = MyExplorer(a_dim, 0.1)
+
+        self.actor = ActorNet(s_dim, a_dim)
+        self.actor_target = ActorNet(s_dim, a_dim)
+
+        self.critic = CriticNet(s_dim, sum(a_dim))
+
+        self.critic_target = CriticNet(s_dim, sum(a_dim))
         self.actor_optim = optim.Adam(
             self.actor.parameters(), lr=self.actor_lr)
         self.critic_optim = optim.Adam(
             self.critic.parameters(), lr=self.critic_lr)
+
+        # Create priority replay buffer:
         self.buffer = []
+        # self.replaybuffer_ = PriorityBuffer(
+        #     self.args.MEMORY_SIZE,
+        #     self.args.BATCH_SIZE,
+        #     self.args.ALPHA,
+        #     self.args.MU,
+        #     self.args.SEED)
 
         self.actor_target.load_state_dict(self.actor.state_dict())
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         if self.using_cuda:
+            logger.info("Loading to GPU space")
             self.cuda()
 
     def act(self, s0):
@@ -59,31 +70,30 @@ class DDPGAgent(object):
         if self.using_cuda:
             s0 = s0.cuda()
         a0 = self.actor(s0).squeeze(0).detach().cpu().numpy()
+        return self.explorer_.get_action(a0)
         return a0
 
-    # new added to test act net
-    def act_backup(self, s0):
-        s0 = torch.tensor(s0, dtype=torch.float).unsqueeze(0)
-        a0 = self.actor_backup(s0).squeeze(0).detach().cpu().numpy()
-        return a0
-
-    # new added to test critic net
-    def crit_backup(self, s0, a0):
-        s0 = torch.tensor(s0, dtype=torch.float).unsqueeze(0)
-        a0 = torch.tensor(a0, dtype=torch.float).unsqueeze(0)
-        c_a = self.critic_backup(s0, a0).squeeze(0).detach().cpu().numpy()
-        return c_a
-
-    def put(self, *transition):
+    def store_transaction(self, *transition, td_error=0, gradient=0):
         if len(self.buffer) == self.capacity:
             self.buffer.pop(0)
         self.buffer.append(transition)
+        return
+
+        # self.replaybuffer_.add(transition, td_error, [
+        #                        np.mean(np.abs(gradient))])
 
     def learn(self):
         if len(self.buffer) < self.batch_size:
             return
         #sta1 = time.time()
-        samples = random.sample(self.buffer, self.batch_size)
+
+        # new added
+        #self.beta_ += (1 - self.beta_) / self.args.EPSILON_STEPS
+        #batch_, weights_, indices_ = self.replaybuffer_.select(self.beta_)
+
+        #weights_ = np.expand_dims(weights_, axis=1)
+        # new added
+        samples = np.sample(self.buffer, self.batch_size)
 
         s0, a0, r1, s1 = zip(*samples)
         #sta2 = time.time()
@@ -100,7 +110,7 @@ class DDPGAgent(object):
         #sta4 = time.time()
         #print("time cost: ", (sta2-sta1)*1000, sta3-sta3, (sta4-sta3)*1000)
 
-        def critic_learn():
+        def critic_learn(is_weight=None):
             a1 = self.actor_target(s1).detach()
             y_true = r1 + self.gamma * self.critic_target(s1, a1).detach()
 
@@ -108,6 +118,7 @@ class DDPGAgent(object):
 
             loss_fn = nn.MSELoss()
             loss = loss_fn(y_pred, y_true)
+            # loss=torch.multiply(loss,is_weight)
             self.critic_optim.zero_grad()
             loss.backward()
             self.critic_optim.step()
@@ -135,8 +146,11 @@ class DDPGAgent(object):
         #sta5 = time.time()
         critic_learn()
         #sta6 = time.time()
-        actor_learn_two_stage()
+        actor_learn()
+        # actor_learn_two_stage()
         #sta7 = time.time()
+        # self.replaybuffer_.priority_update(indices, np.array(
+        #    batch_error).flatten(), np.mean(np.abs(grads[0]), axis=1))
         soft_update(self.critic_target, self.critic, self.tau)
         soft_update(self.actor_target, self.actor, self.tau)
         #sta8 = time.time()
@@ -213,18 +227,14 @@ class DDPGAgent(object):
         self.critic_target.cuda()
 
     def show_model(self):
-        # logger.info("Showing actor model: ")
-        # for item in self.actor.named_parameters():
-        #     print(item[0], item[1].shape)
-
-        # logger.info("Showing critic model: ")
-        # for item in self.critic.named_parameters():
-        #     print(item[0], item[1].shape)
-
-        logger.info("Show actor backup net")
-        for item in self.actor_backup.named_parameters():
+        logger.info("Showing actor model: ")
+        for item in self.actor.named_parameters():
             print(item[0], item[1].shape)
 
-        logger.info("Show critic backup net")
-        for item in self.critic_backup.named_parameters():
+        logger.info("Showing critic model: ")
+        for item in self.critic.named_parameters():
             print(item[0], item[1].shape)
+
+        stream1 = torch.cuda.Stream()
+        stream2 = torch.cuda.Stream()
+        print("Streaming:::::::::", stream1, stream2)

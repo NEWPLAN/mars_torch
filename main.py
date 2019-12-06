@@ -1,6 +1,5 @@
 from tester import Tester
 from trainer import Trainer
-import gym
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -23,20 +22,17 @@ def build_env(args_):
     env2 = NetEnv("/home/newplan/data/inputs/", "Abi_OBL_3_0_test",
                   "Abi", args.MAX_STEP,  3995)
     return env2
-    pass
 
 
-env = gym.make('Pendulum-v0')
-net_env = build_env(args)
-state_dim = net_env.get_state_dim()
-action_dim = net_env.get_action_dim()
+env = build_env(args)
+state_dim = env.get_state_dim()
+action_dim = env.get_action_dim()
 
 logger.info("State DIM: \n{}".format(state_dim))
 logger.info("Action DIM:\n{}".format(sum(action_dim)))
 # net_env.show_info()
 
 env.reset()
-net_env.reset()
 
 # exit(0)
 # env.render()
@@ -46,10 +42,9 @@ net_env.reset()
 configs = {
     'args': args,
     'env': env,
-    'env_network': net_env,
     'gamma': 0.99,
     'actor_lr': 0.001,
-    'critic_lr': 0.001,
+    'critic_lr': 0.01,
     'tau': 0.02,
     'capacity': 10000,
     'batch_size': 32,
@@ -57,7 +52,7 @@ configs = {
 }
 
 agent = DDPGAgent(**configs)
-agent.show_model()
+# agent.show_model()
 
 if args.RUNNING_TYPE == "train":
     trainer = Trainer(agent, env, configs)
@@ -72,4 +67,4 @@ elif args.RUNNING_TYPE == "test":
     tester.test(True)
 else:
     print("unknown running type: ", args.RUNNING_TYPE)
-env.close()
+# env.close()
